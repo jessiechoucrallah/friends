@@ -1,0 +1,218 @@
+package friends;
+
+import java.util.ArrayList;
+import java.util.HashSet;
+//import structures.Stack;
+
+import structures.Queue;
+
+public class Friends {
+
+    /**
+     * Finds the shortest chain of people from p1 to p2. Chain is returned as a
+     * sequence of names starting with p1, and ending with p2. Each pair (n1,n2)
+     * of consecutive names in the returned chain is an edge in the graph.
+     * 
+     * @param g
+     *            Graph for which shortest chain is to be found.
+     * @param p1
+     *            Person with whom the chain originates
+     * @param p2
+     *            Person at whom the chain terminates
+     * @return The shortest chain from p1 to p2. Null if there is no path from
+     *         p1 to p2
+     */
+    public static ArrayList<String> shortestChain(Graph g, String p1, String p2) {
+
+        // this is essentially a BFS
+        Integer[] pi = new Integer[g.members.length]; // predecessor array
+        Integer t = g.map.get(p2); // destination
+
+        // BFS uses a queue
+        Queue<Integer> q = new Queue<>();
+        Integer s = g.map.get(p1);
+        q.enqueue(s);
+        pi[s] = -1; // nothing comes before s
+        while (!q.isEmpty()) {
+            Integer i = q.dequeue();
+            if (i == t) {
+                break;
+            }
+            Friend f = g.members[i].first;
+            while (f != null) {
+                if (pi[f.fnum] == null) {
+                    q.enqueue(f.fnum);
+                    pi[f.fnum] = i;
+                }
+                f = f.next;
+            }
+        }
+
+        ArrayList<String> res = new ArrayList<>();
+        if (pi[t] != null) {
+            res.add(0, g.members[t].name);
+            Integer i = pi[t];
+            while (i != null && i >= 0) {
+                res.add(0, g.members[i].name);
+                i = pi[i];
+            }
+        }
+
+        return res;
+    }
+
+    /**
+     * Finds all cliques of students in a given school.
+     * 
+     * Returns an array list of array lists - each constituent array list
+     * contains the names of all students in a clique.
+     * 
+     * @param g
+     *            Graph for which cliques are to be found.
+     * @param school
+     *            Name of school
+     * @return Array list of clique array lists. Null if there is no student in
+     *         the given school
+     */
+    public static ArrayList<ArrayList<String>> cliques(Graph g, String school) {
+
+        ArrayList<ArrayList<String>> res = new ArrayList<>();
+        boolean[] added = new boolean[g.members.length];
+
+        for (Person p : g.members) {
+            if (p.student && p.school.equals(school)) {
+                if (!added[g.map.get(p.name)]) {
+                    ArrayList<String> clique = new ArrayList<>();
+                    Queue<Integer> q = new Queue<>();
+                    q.enqueue(g.map.get(p.name));
+                    while (!q.isEmpty()) {
+                        Integer i = q.dequeue();
+                        clique.add(g.members[i].name);
+                        added[i] = true;
+                        Friend f = g.members[i].first;
+                        while (f != null) {
+                            if (!added[f.fnum] && g.members[f.fnum].student
+                                    && g.members[f.fnum].school.equals(school)) {
+                                q.enqueue(f.fnum);
+                            }
+                            f = f.next;
+                        }
+                    }
+                    res.add(clique);
+                }
+            }
+        }
+
+        return res;
+
+    }
+
+    /**
+     * Finds and returns all connectors in the graph.
+     * 
+     * @param g
+     *            Graph for which connectors needs to be found.
+     * @return Names of all connectors. Null if there are no connectors.
+     */
+
+    public static ArrayList<String> connectors(Graph g) {
+        HashSet<String> connectors = new HashSet<>();
+        // DFS uses a stack (or recursion)
+        dfs(g, connectors);
+        return new ArrayList<>(connectors);
+
+    }
+
+    private static void dfs(Graph g, HashSet<String> connectors) {
+        boolean[] visited = new boolean[g.members.length];
+        int[] dfsnum = new int[g.members.length];
+        int[] back = new int[g.members.length];
+        int time = 0;
+        for (Person p : g.members) {
+            Integer u = g.map.get(p.name);
+            if (!visited[u]) {
+                time = dfsVisit(g, u, visited, dfsnum, back, time, connectors, true);
+            }
+        }
+    }
+
+    private static int dfsVisit(Graph g, Integer u, boolean[] visited, int[] dfsnum, int[] back, int time,
+            HashSet<String> connectors, boolean starting) {
+        time++;
+        dfsnum[u] = time;
+        back[u] = time;
+        visited[u] = true;
+        Friend f = g.members[u].first;
+        while (f != null) {
+            Integer v = f.fnum;
+            if (!visited[v]) {
+                time = dfsVisit(g, v, visited, dfsnum, back, time, connectors, false);
+                if (dfsnum[u] > back[v]) {
+                    // the first condition for updating back will make it so
+                    // that
+                    // back of u is the smallest dfsnum for the earliest vertex
+                    // reachable by u
+                    back[u] = Math.min(back[u], back[v]);
+                }
+
+                // this condition means that once we get back to vertex u after
+                // visiting
+                // v, the time that any vertex reachable from v is first visited
+                // is at
+                // least as great as the time that u is first visited
+
+                // this means that the earliest vertex that v can reach is u
+                // so v cannot reach any vertex before u without u
+                if (dfsnum[u] <= back[v]) {
+
+                    if (!starting) {
+                        connectors.add(g.members[u].name);
+                    } else if (dfsnum[v] > 2) {
+                        // Even if u is where the dfs started,
+                        // it may be a connector
+                        // This is the condition to determine if u is a
+                        // connector because:
+                        // All the vertices visited by dfs prior to dfsnum[v]
+                        // cannot have reached v because otherwise v would
+                        // have already been visited and dfsvisit would not
+                        // visit v and return from visiting v to u
+                        // This means every path from any vertex visited by dfs
+                        // prior to dfsnum[v] must go through u to get to v
+                        connectors.add(g.members[u].name);
+                    }
+                }
+            } else {
+                // the second condition for updating back will make it so
+                // back of u is the smallest dfsnum for the earliest
+                // vertex already visited that u can reach
+                back[u] = Math.min(back[u], dfsnum[v]);
+            }
+            f = f.next;
+        }
+        return time;
+    }
+    /*-public static ArrayList<String> connectors(Graph g) {
+        ArrayList<String> connectors = new ArrayList<>();
+        
+        // DFS uses a stack (or recursion)
+        Stack<Integer> stack = new Stack<>();
+        boolean[] visited = new boolean[g.members.length];
+        for (Person p : g.members) {
+            if (!visited[g.map.get(p.name)]) {
+                stack.push(g.map.get(p.name));
+                while (!stack.isEmpty()) {
+                    Friend f = g.members[stack.peek()].first;
+                    while (f != null) {
+                        if (!visited[f.fnum]) {
+                            stack.push(f.fnum);
+                        }
+                        f = f.next;
+                    }
+                }
+            }
+        }
+        return null;
+    
+    }
+    */
+}
